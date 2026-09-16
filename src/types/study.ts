@@ -10,3 +10,12 @@ export interface FocusTimeRequest {
   studyDailyPlanId: number;
   focusTime: string;
 }
+
+export interface PersonalFocusRecordRequest {
+  focusSeconds: number;
+}
+
+export interface PersonalFocusRecordResponse extends PersonalFocusRecordRequest {
+  personalFocusRecordId: number;
+  createdAt: string;
+}

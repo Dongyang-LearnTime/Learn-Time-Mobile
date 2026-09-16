@@ -8,6 +8,7 @@ import { LoadingView, MessageBox } from '../../src/components/Feedback';
 import { Screen } from '../../src/components/Screen';
 import { colors } from '../../src/constants/theme';
 import { useAuthStore } from '../../src/stores/authStore';
+import { useTimerStore } from '../../src/stores/timerStore';
 import type { TodayStudyPlanResponse } from '../../src/types/study';
 import type { UserSummaryResponse } from '../../src/types/user';
 import { getApiError } from '../../src/utils/getApiError';
@@ -21,6 +22,7 @@ const statusLabel: Record<string, string> = {
 export default function HomeScreen() {
   const router = useRouter();
   const userName = useAuthStore((state) => state.userName);
+  const selectPlan = useTimerStore((state) => state.selectPlan);
   const [summary, setSummary] = useState<UserSummaryResponse | null>(null);
   const [plans, setPlans] = useState<TodayStudyPlanResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +47,11 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => {
     void load();
   }, [load]));
+
+  const openTimerForPlan = async (plan: TodayStudyPlanResponse) => {
+    await selectPlan(plan);
+    router.push('/timer');
+  };
 
   return (
     <Screen refreshing={isRefreshing} onRefresh={() => void load(true)}>
@@ -75,16 +82,28 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>오늘의 학습 계획</Text>
           {plans.length === 0 ? (
             <MessageBox message="오늘 예정된 학습 계획이 없습니다. 웹에서 계획을 먼저 생성해주세요." />
-          ) : plans.map((plan) => (
-            <View key={plan.studyDailyPlanId} style={styles.planCard}>
-              <View style={styles.planTop}>
-                <Text style={styles.planTitle}>{plan.studyTitle}</Text>
-                <Text style={styles.status}>{statusLabel[plan.progressStatus] ?? plan.progressStatus}</Text>
-              </View>
-              <Text style={styles.planContent} numberOfLines={3}>{plan.planContent}</Text>
-            </View>
-          ))}
-          <Pressable style={styles.timerButton} onPress={() => router.push('/timer')}><Text style={styles.timerButtonText}>과목을 선택해 타이머 시작</Text></Pressable>
+          ) : plans.map((plan) => {
+            const isCompleted = plan.progressStatus === 'COMPLETED';
+            return (
+              <Pressable
+                key={plan.studyDailyPlanId}
+                style={({ pressed }) => [styles.planCard, isCompleted && styles.completedCard, pressed && !isCompleted && styles.pressed]}
+                disabled={isCompleted}
+                onPress={() => void openTimerForPlan(plan)}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isCompleted }}
+                accessibilityLabel={isCompleted ? `${plan.studyTitle} 완료됨` : `${plan.studyTitle} 타이머 시작`}
+              >
+                <View style={styles.planTop}>
+                  <Text style={styles.planTitle}>{plan.studyTitle}</Text>
+                  <Text style={styles.status}>{statusLabel[plan.progressStatus] ?? plan.progressStatus}</Text>
+                </View>
+                <Text style={styles.planContent} numberOfLines={3}>{plan.planContent}</Text>
+                <Text style={[styles.action, isCompleted && styles.actionMuted]}>{isCompleted ? '완료된 계획' : '이 계획으로 타이머 열기'}</Text>
+              </Pressable>
+            );
+          })}
+          <Pressable style={styles.timerButton} onPress={() => router.push('/timer')}><Text style={styles.timerButtonText}>계획 없이도 타이머 시작</Text></Pressable>
         </View>
       ) : null}
     </Screen>
@@ -104,11 +123,13 @@ const styles = StyleSheet.create({
   section: { gap: 12 },
   sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '800', marginTop: 4 },
   planCard: { backgroundColor: colors.surface, padding: 18, borderRadius: 17, borderWidth: 1, borderColor: colors.border },
+  completedCard: { opacity: 0.68 },
   planTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   planTitle: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '800' },
   status: { color: colors.primary, backgroundColor: colors.primarySoft, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, fontSize: 12, fontWeight: '700' },
   planContent: { color: colors.muted, lineHeight: 21, marginTop: 10 },
   action: { color: colors.primary, fontWeight: '800', marginTop: 14 },
+  actionMuted: { color: colors.muted },
   pressed: { opacity: 0.72 },
   timerButton: { backgroundColor: colors.primary, borderRadius: 14, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
   timerButtonText: { color: '#FFF', fontWeight: '800' },

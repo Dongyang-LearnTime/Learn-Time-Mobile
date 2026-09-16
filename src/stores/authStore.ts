@@ -1,25 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
-import { Platform } from 'react-native';
 import { create } from 'zustand';
 
 import { config } from '../constants/config';
+import { secureStorage } from '../storage/secureStorage';
 import type { AccessTokenPayload } from '../types/auth';
 
 const ACCESS_TOKEN_KEY = 'learntime.accessToken';
-
-const tokenStorage = {
-  get: () => Platform.OS === 'web'
-    ? AsyncStorage.getItem(ACCESS_TOKEN_KEY)
-    : SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
-  set: (value: string) => Platform.OS === 'web'
-    ? AsyncStorage.setItem(ACCESS_TOKEN_KEY, value)
-    : SecureStore.setItemAsync(ACCESS_TOKEN_KEY, value),
-  remove: () => Platform.OS === 'web'
-    ? AsyncStorage.removeItem(ACCESS_TOKEN_KEY)
-    : SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
-};
+const EXPIRY_SKEW_MS = 30_000;
 
 interface AuthState {
   accessToken: string | null;
@@ -37,14 +24,17 @@ interface AuthState {
 
 function parseToken(token: string): AccessTokenPayload | null {
   try {
-    return jwtDecode<AccessTokenPayload>(token);
+    if (token.split('.').length !== 3) return null;
+    const payload = jwtDecode<AccessTokenPayload>(token);
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) return null;
+    return payload;
   } catch {
     return null;
   }
 }
 
 function isExpired(payload: AccessTokenPayload): boolean {
-  return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now();
+  return payload.exp! * 1000 <= Date.now() + EXPIRY_SKEW_MS;
 }
 
 function authenticatedState(token: string, payload: AccessTokenPayload) {
@@ -73,7 +63,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   hydrate: async () => {
     try {
-      const token = await tokenStorage.get();
+      const token = await secureStorage.get(ACCESS_TOKEN_KEY);
       if (!token) {
         set({ ...emptyAuthState, isHydrating: false });
         return;
@@ -94,7 +84,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       const payload = parseToken(token);
       if (!payload || isExpired(payload)) {
-        await tokenStorage.remove();
+        await secureStorage.remove(ACCESS_TOKEN_KEY);
         set({ ...emptyAuthState, isHydrating: false });
         return;
       }
@@ -110,12 +100,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!payload || isExpired(payload)) {
       throw new Error('유효하지 않거나 만료된 토큰입니다.');
     }
-    await tokenStorage.set(token);
+    await secureStorage.set(ACCESS_TOKEN_KEY, token);
     set(authenticatedState(token, payload));
   },
 
   startDemo: async () => {
-    await tokenStorage.set('DEMO');
+    if (!config.demoMode) throw new Error('데모 모드는 개발 빌드에서만 사용할 수 있습니다.');
+    await secureStorage.set(ACCESS_TOKEN_KEY, 'DEMO');
     set({
       accessToken: 'DEMO',
       userId: 1,
@@ -127,7 +118,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearAuth: async () => {
-    await tokenStorage.remove();
+    await secureStorage.remove(ACCESS_TOKEN_KEY);
     set(emptyAuthState);
   },
 }));

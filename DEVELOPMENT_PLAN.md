@@ -9,7 +9,7 @@
   - 웹: `../LearnTime-Frontend`
   - 서버: `../LearnTime-Backend`
   - 모바일: 현재 `mobile` 폴더
-- 현재 단계: MVP 코드 구현 완료, 실제 서버/실기기 통합 검증 전
+- 현재 단계: 운영 서버/실기기 연동 완료, 자유 공부 타이머 백엔드 배포 및 APK 빌드 전
 - 목표: Google Play 정식 출시가 아닌 실제 안드로이드 기기 동작 및 웹 연동 시연
 
 ## 1. 프로젝트 목표
@@ -311,6 +311,22 @@ Content-Type: application/json
 - 저장 중 버튼을 비활성화한다.
 - 성공 시 타이머를 초기화하고 홈 데이터를 다시 조회한다.
 
+### 7.6.1 자유 공부 집중 시간 저장
+
+스터디 그룹이나 일일 계획이 없는 사용자도 사용자 계정에 직접 귀속되는 집중시간 세션을 저장한다.
+
+```http
+POST /api/study/focus-records
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{
+  "focusSeconds": 1800
+}
+```
+
+최근 기록은 `GET /api/study/focus-records?size=5`로 조회한다. 각 세션을 별도 행으로 누적하며 기존 스터디 진도 통계와 섞지 않는다.
+
 ### 7.7 체중 기록
 
 ```http
@@ -394,6 +410,7 @@ interface AuthState {
 
 ```ts
 interface TimerState {
+  isPersonal: boolean;
   studyDailyPlanId: number | null;
   studyTitle: string | null;
   planContent: string | null;
@@ -484,6 +501,8 @@ Refresh Token 쿠키가 `Secure=true`이므로 HTTP 로컬 환경에서는 재�
 - [x] 입력 규칙 및 중복 저장 방지
 - [x] 집중 시간 API 연결
 - [x] 저장 성공 후 홈 갱신
+- [x] 스터디 계획 없이 자유 공부 타이머 선택
+- [x] 사용자 귀속 자유 공부시간 저장 및 최근 기록 조회 API
 
 완료 조건: 앱에서 저장한 시간이 웹 학습 화면에 표시됨.
 

@@ -11,6 +11,19 @@ import { getApiError } from '../../src/utils/getApiError';
 const today = new Date();
 const initialDate = today.toISOString().slice(0, 10);
 
+function isValidDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return year >= 1970 && year <= 9999
+    && parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day;
+}
+
 export default function ScheduleScreen() {
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [items, setItems] = useState<CalendarResponse[]>([]);
@@ -28,7 +41,9 @@ export default function ScheduleScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const save = async () => {
-    if (!content.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    const timeMatch = /^(\d{2}):(\d{2})$/.exec(time);
+    if (!content.trim() || content.trim().length > 200 || !isValidDate(date)
+      || !timeMatch || Number(timeMatch[1]) > 23 || Number(timeMatch[2]) > 59) {
       setMessage('일정 내용과 날짜(YYYY-MM-DD), 시간(HH:mm)을 확인해주세요.'); return;
     }
     setIsSaving(true); setMessage('');

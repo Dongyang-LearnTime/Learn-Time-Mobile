@@ -5,12 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "platforms": [
+      "android"
+    ],
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "package": "com.learntime.mobile",
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,14 +20,17 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-font"
     ],
-    "scheme": "learntime"
+    "scheme": "learntime",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2dff2887-02a9-49b8-8681-80c2ee6a9708"
+      }
+    }
   }
 }

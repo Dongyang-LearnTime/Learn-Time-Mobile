@@ -12,12 +12,12 @@
 
 ## 의존성 감사
 
-2026-09-02 `pnpm audit --prod` 결과:
+2026-09-16 `pnpm audit --prod` 결과:
 
 - `uuid`, `decode-uri-component` 간접 의존성은 안전 버전 override 적용
-- Expo/Metro 도구 체인의 `image-size@2.0.2` DoS 권고 2건 잔존
-- 권고가 요구하는 `image-size@2.0.3`은 검사 시점 npm 레지스트리에 존재하지 않아 적용 불가
-- 앱은 사용자가 제공한 ICNS/JXL/HEIF 이미지를 서버에서 파싱하지 않으므로 직접 공격 표면은 제한적임
+- Expo/Metro 도구 체인의 `image-size` DoS 권고 2건은 `2.0.3` override로 조치
+- 앱은 Android 내부 시연용으로 제한하고 운영 빌드의 평문 HTTP 및 데모 인증을 차단
+- 액세스 토큰과 타이머 복원 데이터는 Android Keystore 기반 SecureStore에 저장
 
 Expo SDK 또는 `image-size` 수정 버전이 배포되면 다음 명령으로 다시 확인한다.
 

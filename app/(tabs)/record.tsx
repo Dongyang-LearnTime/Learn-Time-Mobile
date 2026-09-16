@@ -50,7 +50,11 @@ export default function RecordScreen() {
     }
     setIsExerciseSaving(true); setMessage('');
     try {
-      const saved = await saveExercise({ bodyParts, duration: minutes, content: content.trim(), weight: liftedWeight });
+      const trimmedContent = content.trim();
+      if (trimmedContent.length > 1000) {
+        setIsError(true); setMessage('운동 메모는 1000자 이하로 입력해주세요.'); return;
+      }
+      const saved = await saveExercise({ bodyParts, duration: minutes, content: trimmedContent, weight: liftedWeight });
       setExercises((items) => [saved, ...items].slice(0, 5));
       setDuration(''); setExerciseWeight(''); setContent(''); setBodyParts([]);
       setIsError(false); setMessage('운동 기록을 저장했습니다.');
@@ -94,7 +98,7 @@ export default function RecordScreen() {
         <Text style={styles.label}>운동 중량 (kg, 선택)</Text>
         <TextInput style={styles.input} value={exerciseWeight} onChangeText={setExerciseWeight} keyboardType="decimal-pad" placeholder="예: 20" />
         <Text style={styles.label}>운동 메모</Text>
-        <TextInput style={[styles.input, styles.multiline]} value={content} onChangeText={setContent} multiline placeholder="세트 구성이나 오늘의 컨디션" />
+        <TextInput style={[styles.input, styles.multiline]} value={content} onChangeText={setContent} maxLength={1000} multiline placeholder="세트 구성이나 오늘의 컨디션" />
         <Pressable style={[styles.button, isExerciseSaving && styles.disabled]} disabled={isExerciseSaving} onPress={() => void submitExercise()}><Text style={styles.buttonText}>{isExerciseSaving ? '저장 중...' : '운동 기록 저장'}</Text></Pressable>
         {exercises.map((item) => <View key={item.id} style={styles.exerciseRow}><Text style={styles.recordValue}>{item.bodyParts.join(', ')} · {item.duration}분</Text><Text style={styles.recordDate}>{item.content || '메모 없음'}</Text></View>)}
       </View>

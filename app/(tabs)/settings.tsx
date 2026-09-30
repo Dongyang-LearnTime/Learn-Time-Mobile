@@ -31,8 +31,9 @@ export default function SettingsScreen() {
     } catch {
       Alert.alert('안내', '서버 로그아웃에는 실패했지만 기기의 로그인 정보는 삭제합니다.');
     } finally {
-      await clearAuth();
-      setIsLoggingOut(false);
+      try { await clearAuth(); }
+      catch { Alert.alert('기기 저장소 오류', '저장된 로그인 정보를 삭제하지 못했습니다. 앱을 다시 열기 전에 기기 저장소 상태를 확인해주세요.'); }
+      finally { setIsLoggingOut(false); }
     }
   };
 

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { completeStudyDailyPlan, getMyStudyProgresses, getStudyDailyPlans, getStudyTotalInfo, getTodayPlans, startStudyDailyPlan } from '../../src/api/studyApi';
@@ -67,7 +67,18 @@ export default function HomeScreen() {
     waiting: plans.filter((plan) => plan.progressStatus === 'NOT_STARTED').length,
   }), [plans]);
 
-  const openTimerForPlan = async (plan: TodayStudyPlanResponse) => { await selectPlan(plan); router.push('/timer'); };
+  const openTimerForPlan = async (plan: TodayStudyPlanResponse) => {
+    const current = useTimerStore.getState();
+    const open = async () => { await selectPlan(plan); router.push('/timer'); };
+    if (current.studyDailyPlanId !== plan.studyDailyPlanId && current.elapsedSeconds() > 0) {
+      Alert.alert('계획 변경', '저장하지 않은 집중 시간이 초기화됩니다. 다른 계획을 선택할까요?', [
+        { text: '취소', style: 'cancel' },
+        { text: '변경', style: 'destructive', onPress: () => void open().catch((requestError) => setError(getApiError(requestError))) },
+      ]);
+      return;
+    }
+    await open();
+  };
 
   const startPlan = async (plan: TodayStudyPlanResponse) => {
     setBusyPlanId(plan.studyDailyPlanId); setError('');
@@ -75,12 +86,20 @@ export default function HomeScreen() {
       await startStudyDailyPlan(plan.studyDailyPlanId);
       const updated = { ...plan, progressStatus: 'IN_PROGRESS' as const };
       setPlans((items) => items.map((item) => item.studyDailyPlanId === plan.studyDailyPlanId ? updated : item));
-      await selectPlan(updated);
+      const current = useTimerStore.getState();
+      if (current.studyDailyPlanId === plan.studyDailyPlanId || current.elapsedSeconds() === 0) await selectPlan(updated);
     } catch (requestError) { setError(getApiError(requestError)); }
     finally { setBusyPlanId(null); }
   };
 
   const completePlan = async (plan: TodayStudyPlanResponse) => {
+    const current = useTimerStore.getState();
+    if (current.studyDailyPlanId === plan.studyDailyPlanId && current.elapsedSeconds() > 0) {
+      Alert.alert('집중 시간을 먼저 저장해주세요', '계획을 완료하면 집중 시간을 추가로 저장할 수 없습니다.', [
+        { text: '취소', style: 'cancel' }, { text: '타이머로 이동', onPress: () => router.push('/timer') },
+      ]);
+      return;
+    }
     setBusyPlanId(plan.studyDailyPlanId); setError('');
     try {
       await completeStudyDailyPlan({ studyDailyPlanId: plan.studyDailyPlanId, completionStatus, understandingScore });
@@ -131,7 +150,7 @@ export default function HomeScreen() {
               <View style={styles.actionButtons}><Pressable style={styles.cancelButton} onPress={() => setCompletionTarget(null)}><Text style={styles.cancelText}>취소</Text></Pressable><Pressable style={[styles.completeButton, isBusy && styles.disabled]} disabled={isBusy} onPress={() => void completePlan(plan)}><Text style={styles.buttonText}>{isBusy ? '저장 중...' : '진도 완료'}</Text></Pressable></View>
             </View> : <View style={styles.actionButtons}>
               {plan.progressStatus === 'NOT_STARTED' ? <Pressable style={[styles.startButton, isBusy && styles.disabled]} disabled={isBusy} onPress={() => void startPlan(plan)}><Ionicons name="play" color="#FFF" size={16} /><Text style={styles.buttonText}>{isBusy ? '시작 중...' : '진도 시작'}</Text></Pressable> : null}
-              {plan.progressStatus === 'IN_PROGRESS' ? <><Pressable style={styles.timerButton} onPress={() => void openTimerForPlan(plan)}><Ionicons name="timer-outline" color={colors.primary} size={17} /><Text style={styles.timerButtonText}>타이머</Text></Pressable><Pressable style={styles.completeButton} onPress={() => setCompletionTarget(plan.studyDailyPlanId)}><Text style={styles.buttonText}>완료하기</Text></Pressable></> : null}
+              {plan.progressStatus === 'IN_PROGRESS' ? <><Pressable style={styles.timerButton} onPress={() => void openTimerForPlan(plan).catch((requestError) => setError(getApiError(requestError)))}><Ionicons name="timer-outline" color={colors.primary} size={17} /><Text style={styles.timerButtonText}>타이머</Text></Pressable><Pressable style={styles.completeButton} onPress={() => setCompletionTarget(plan.studyDailyPlanId)}><Text style={styles.buttonText}>완료하기</Text></Pressable></> : null}
               {isCompleted ? <View style={styles.finishedRow}><Ionicons name="checkmark-circle" color={colors.success} size={18} /><Text style={styles.finishedText}>오늘의 진도를 완료했어요</Text></View> : null}
             </View>}
           </View>;

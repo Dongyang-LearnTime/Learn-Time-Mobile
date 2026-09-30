@@ -8,6 +8,7 @@ node_modules/
 dist/
 web-build/
 builds/*.apk
+builds/*.part
 expo-env.d.ts
 
 # Native

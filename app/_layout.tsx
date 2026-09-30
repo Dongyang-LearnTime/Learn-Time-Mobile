@@ -18,11 +18,12 @@ export default function RootLayout() {
   const isHydrating = useAuthStore((state) => state.isHydrating);
   const hydrateAuth = useAuthStore((state) => state.hydrate);
   const hydrateTimer = useTimerStore((state) => state.hydrate);
+  const timerHydrated = useTimerStore((state) => state.isHydrated);
   const hydrateTheme = useThemeStore((state) => state.hydrate);
   const themeHydrating = useThemeStore((state) => state.isHydrating);
 
   useEffect(() => {
-    void Promise.all([hydrateAuth(), hydrateTimer(), hydrateTheme()]);
+    void Promise.all([hydrateAuth().then(hydrateTimer), hydrateTheme()]);
   }, [hydrateAuth, hydrateTimer, hydrateTheme]);
 
   useEffect(() => {
@@ -30,15 +31,15 @@ export default function RootLayout() {
   }, [mode]);
 
   useEffect(() => {
-    if (isHydrating) return;
+    if (isHydrating || themeHydrating || !timerHydrated) return;
     const firstSegment = segments[0] as string | undefined;
     const isLoginRoute = firstSegment === 'login';
 
     if (!isAuthenticated && !isLoginRoute) router.replace('/login');
     if (isAuthenticated && isLoginRoute) router.replace('/');
-  }, [isAuthenticated, isHydrating, router, segments]);
+  }, [isAuthenticated, isHydrating, themeHydrating, timerHydrated, router, segments]);
 
-  if (isHydrating || themeHydrating) {
+  if (isHydrating || themeHydrating || !timerHydrated) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />

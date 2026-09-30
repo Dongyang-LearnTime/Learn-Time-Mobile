@@ -30,9 +30,10 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "apk": "NODE_OPTIONS=--dns-result-order=ipv4first pnpm dlx eas-cli@24.6.0 build --platform android --profile preview --no-wait",
-    "apk:status": "NODE_OPTIONS=--dns-result-order=ipv4first pnpm dlx eas-cli@24.6.0 build:list --platform android --limit 2",
-    "typecheck": "tsc --noEmit"
+    "apk": "NODE_OPTIONS=--dns-result-order=ipv4first pnpm dlx eas-cli@24.8.0 build --platform android --profile preview --no-wait",
+    "apk:status": "NODE_OPTIONS=--dns-result-order=ipv4first pnpm dlx eas-cli@24.8.0 build:list --platform android --limit 2",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.cjs"
   },
   "private": true
 }

@@ -3,10 +3,12 @@ import { create } from 'zustand';
 import { secureStorage } from '../storage/secureStorage';
 import type { TodayStudyPlanResponse } from '../types/study';
 import { MAX_FOCUS_SECONDS } from '../utils/formatTime';
+import { useAuthStore } from './authStore';
 
 const TIMER_KEY = 'learntime.timer';
 
 interface PersistedTimer {
+  ownerId: number | null;
   studyDailyPlanId: number | null;
   studyTitle: string | null;
   planContent: string | null;
@@ -23,10 +25,12 @@ interface TimerState extends PersistedTimer {
   start: () => Promise<void>;
   pause: () => Promise<number>;
   reset: () => Promise<void>;
+  clear: () => Promise<void>;
   elapsedSeconds: () => number;
 }
 
 const initialTimer: PersistedTimer = {
+  ownerId: null,
   studyDailyPlanId: null,
   studyTitle: null,
   planContent: null,
@@ -36,13 +40,9 @@ const initialTimer: PersistedTimer = {
   accumulatedSeconds: 0,
 };
 
-async function persist(state: PersistedTimer): Promise<void> {
-  await secureStorage.set(TIMER_KEY, JSON.stringify(state));
-}
-
 function snapshot(state: TimerState): PersistedTimer {
-  const { studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds } = state;
-  return { studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds };
+  const { ownerId, studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds } = state;
+  return { ownerId, studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds };
 }
 
 function elapsed(state: PersistedTimer): number {
@@ -69,7 +69,8 @@ function parsePersistedTimer(raw: string): PersistedTimer | null {
       && value.accumulatedSeconds <= MAX_FOCUS_SECONDS;
 
     if (
-      typeof value.isRunning !== 'boolean'
+      !Number.isSafeInteger(value.ownerId) || value.ownerId! <= 0
+      || typeof value.isRunning !== 'boolean'
       || !hasValidPlanId
       || !hasValidStartedAt
       || !hasValidSeconds
@@ -86,17 +87,29 @@ function parsePersistedTimer(raw: string): PersistedTimer | null {
   }
 }
 
-export const useTimerStore = create<TimerState>((set, get) => ({
+export const useTimerStore = create<TimerState>((set, get) => {
+  const commit = async (next: PersistedTimer) => {
+    const auth = useAuthStore.getState();
+    if (!auth.isAuthenticated || !auth.userId) throw new Error('로그인이 필요합니다.');
+    await secureStorage.set(TIMER_KEY, JSON.stringify({ ...next, ownerId: auth.userId }));
+    if (useAuthStore.getState().sessionVersion !== auth.sessionVersion
+      || useAuthStore.getState().userId !== auth.userId) throw new Error('로그인 세션이 변경되었습니다.');
+    set({ ...next, ownerId: auth.userId });
+  };
+  return {
   ...initialTimer,
   isHydrated: false,
 
   hydrate: async () => {
+    const auth = useAuthStore.getState();
     try {
       const raw = await secureStorage.get(TIMER_KEY);
+      if (useAuthStore.getState().sessionVersion !== auth.sessionVersion) return;
       if (raw) {
         const stored = parsePersistedTimer(raw);
-        if (!stored) {
+        if (!stored || !auth.isAuthenticated || stored.ownerId !== auth.userId) {
           await secureStorage.remove(TIMER_KEY);
+          if (useAuthStore.getState().sessionVersion !== auth.sessionVersion) return;
           set({ ...initialTimer, isHydrated: true });
           return;
         }
@@ -104,35 +117,39 @@ export const useTimerStore = create<TimerState>((set, get) => ({
       }
       else set({ isHydrated: true });
     } catch {
-      set({ ...initialTimer, isHydrated: true });
+      if (useAuthStore.getState().sessionVersion === auth.sessionVersion) set({ ...initialTimer, isHydrated: true });
     }
   },
 
   selectPlan: async (plan) => {
+    const current = get();
+    const preserve = current.studyDailyPlanId === plan.studyDailyPlanId
+      && current.ownerId === useAuthStore.getState().userId;
     const next: PersistedTimer = {
-      ...initialTimer,
+      ...(preserve ? snapshot(current) : initialTimer),
       studyDailyPlanId: plan.studyDailyPlanId,
       studyTitle: plan.studyTitle,
       planContent: plan.planContent,
       progressStatus: plan.progressStatus,
     };
-    set(next);
-    await persist(next);
+    if (plan.progressStatus === 'COMPLETED') {
+      next.accumulatedSeconds = preserve ? elapsed(current) : 0;
+      next.isRunning = false; next.startedAt = null;
+    }
+    await commit(next);
   },
 
   start: async () => {
-    if (get().isRunning || get().studyDailyPlanId === null) return;
+    if (get().isRunning || get().studyDailyPlanId === null || get().progressStatus === 'COMPLETED') return;
     const next = { ...snapshot(get()), isRunning: true, startedAt: Date.now() };
-    set(next);
-    await persist(next);
+    await commit(next);
   },
 
   pause: async () => {
     const current = get();
     const total = elapsed(current);
     const next = { ...snapshot(current), isRunning: false, startedAt: null, accumulatedSeconds: total };
-    set(next);
-    await persist(next);
+    await commit(next);
     return total;
   },
 
@@ -145,9 +162,20 @@ export const useTimerStore = create<TimerState>((set, get) => ({
       planContent: current.planContent,
       progressStatus: current.progressStatus,
     };
-    set(next);
-    await persist(next);
+    await commit(next);
+  },
+
+  clear: async () => {
+    set({ ...initialTimer, isHydrated: true });
+    await secureStorage.remove(TIMER_KEY);
   },
 
   elapsedSeconds: () => elapsed(get()),
-}));
+  };
+});
+
+useAuthStore.subscribe((next, previous) => {
+  if (previous.isAuthenticated && (!next.isAuthenticated || next.userId !== previous.userId)) {
+    void useTimerStore.getState().clear().catch(() => undefined);
+  }
+});

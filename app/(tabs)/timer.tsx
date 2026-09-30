@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -7,7 +7,7 @@ import { MessageBox } from '../../src/components/Feedback';
 import { Screen } from '../../src/components/Screen';
 import { useTheme, type ThemeColors, shadows } from '../../src/constants/theme';
 import { useTimerStore } from '../../src/stores/timerStore';
-import { formatTime, MAX_FOCUS_SECONDS } from '../../src/utils/formatTime';
+import { formatTime } from '../../src/utils/formatTime';
 import { getApiError } from '../../src/utils/getApiError';
 import type { TodayStudyPlanResponse } from '../../src/types/study';
 
@@ -17,6 +17,7 @@ export default function TimerScreen() {
   const timer = useTimerStore();
   const [displaySeconds, setDisplaySeconds] = useState(timer.elapsedSeconds());
   const [isSaving, setIsSaving] = useState(false);
+  const saving = useRef(false);
   const [error, setError] = useState('');
   const [plans, setPlans] = useState<TodayStudyPlanResponse[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
@@ -36,42 +37,31 @@ export default function TimerScreen() {
   }, [timer.isRunning, timer.startedAt, timer.accumulatedSeconds]);
 
   const save = async () => {
-    if (timer.studyDailyPlanId === null) return;
-    if (timer.progressStatus === 'COMPLETED') {
+    if (saving.current) return;
+    const current = useTimerStore.getState();
+    if (current.studyDailyPlanId === null) return;
+    if (current.progressStatus === 'COMPLETED') {
       Alert.alert('저장할 수 없어요', '완료된 계획에는 집중 시간을 추가로 기록할 수 없습니다. 다른 오늘의 계획을 선택해주세요.');
       return;
     }
-    let seconds = timer.isRunning ? await timer.pause() : timer.elapsedSeconds();
-    setDisplaySeconds(seconds);
-
-    if (seconds < 10) {
-      Alert.alert('저장할 수 없어요', '집중 시간은 10초 이상이어야 합니다.');
-      return;
-    }
-    if (seconds > MAX_FOCUS_SECONDS) {
-      seconds = MAX_FOCUS_SECONDS;
-      Alert.alert('시간 보정', '하루 최대 기록인 12시간으로 저장합니다.');
-    }
-
-    const submit = async () => {
-      setIsSaving(true);
-      setError('');
-      try {
-        await registerFocusTime({ studyDailyPlanId: timer.studyDailyPlanId!, focusTime: formatTime(seconds) });
-        await timer.reset();
-        setDisplaySeconds(0);
-        Alert.alert('저장 완료', '집중 시간이 서버에 기록되었습니다. 웹에서도 확인할 수 있습니다.');
-      } catch (requestError) {
-        setError(getApiError(requestError));
-      } finally {
-        setIsSaving(false);
+    const planId = current.studyDailyPlanId;
+    saving.current = true; setIsSaving(true); setError('');
+    try {
+      const seconds = current.isRunning ? await current.pause() : current.elapsedSeconds();
+      setDisplaySeconds(seconds);
+      if (seconds < 10) {
+        Alert.alert('저장할 수 없어요', '집중 시간은 10초 이상이어야 합니다.'); return;
       }
-    };
-
-    await submit();
+      await registerFocusTime({ studyDailyPlanId: planId, focusTime: formatTime(seconds) });
+      await useTimerStore.getState().reset();
+      setDisplaySeconds(0);
+      Alert.alert('저장 완료', '집중 시간이 서버에 기록되었습니다. 웹에서도 확인할 수 있습니다.');
+    } catch (requestError) { setError(getApiError(requestError)); }
+    finally { saving.current = false; setIsSaving(false); }
   };
 
   const selectAndStartPlan = async (plan: TodayStudyPlanResponse) => {
+    if (saving.current) return;
     let selectedPlan = plan;
     if (plan.progressStatus === 'NOT_STARTED') {
       await startStudyDailyPlan(plan.studyDailyPlanId);
@@ -82,6 +72,7 @@ export default function TimerScreen() {
   };
 
   const changePlan = (plan: TodayStudyPlanResponse) => {
+    if (saving.current) return;
     if (plan.studyDailyPlanId === timer.studyDailyPlanId) return;
     const select = () => void selectAndStartPlan(plan).catch((requestError) => setError(getApiError(requestError)));
     if (timer.elapsedSeconds() > 0) {
@@ -95,6 +86,7 @@ export default function TimerScreen() {
   };
 
   const toggleTimer = async () => {
+    if (saving.current) return;
     setError('');
     try {
       if (timer.isRunning) {
@@ -142,7 +134,7 @@ export default function TimerScreen() {
       </View>
       <View style={styles.subjectList}>
         <Text style={styles.subjectLabel}>과목 변경</Text>
-        {plans.map((plan) => <SubjectButton key={plan.studyDailyPlanId} plan={plan} selected={plan.studyDailyPlanId === timer.studyDailyPlanId} onPress={() => changePlan(plan)} />)}
+        {plans.map((plan) => <SubjectButton key={plan.studyDailyPlanId} plan={plan} selected={plan.studyDailyPlanId === timer.studyDailyPlanId} saving={isSaving} onPress={() => changePlan(plan)} />)}
       </View>
 
       <View style={styles.timerCard}>
@@ -157,7 +149,7 @@ export default function TimerScreen() {
           >
             <Text style={styles.primaryText}>{isCompleted ? '완료됨' : timer.isRunning ? '일시정지' : '시작'}</Text>
           </Pressable>
-          <Pressable style={[styles.secondaryButton, styles.flexButton]} disabled={isSaving} onPress={() => void timer.reset()}>
+          <Pressable style={[styles.secondaryButton, styles.flexButton]} disabled={isSaving} onPress={() => void timer.reset().catch((requestError) => setError(getApiError(requestError)))}>
             <Text style={styles.secondaryText}>초기화</Text>
           </Pressable>
         </View>
@@ -171,10 +163,11 @@ export default function TimerScreen() {
   );
 }
 
-function SubjectButton({ plan, selected = false, onPress }: { plan: TodayStudyPlanResponse; selected?: boolean; onPress: () => void }) {
+function SubjectButton({ plan, selected = false, saving = false, onPress }: { plan: TodayStudyPlanResponse; selected?: boolean; saving?: boolean; onPress: () => void }) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
-  const disabled = plan.progressStatus === 'COMPLETED';
+  const completed = plan.progressStatus === 'COMPLETED';
+  const disabled = saving || completed;
   return (
     <Pressable
       style={[styles.subjectButton, selected && styles.subjectSelected, disabled && styles.subjectDisabled]}
@@ -183,7 +176,7 @@ function SubjectButton({ plan, selected = false, onPress }: { plan: TodayStudyPl
       accessibilityState={{ disabled, selected }}
     >
       <View style={styles.subjectTitleRow}><Ionicons name="book-outline" color={selected ? colors.primary : colors.muted} size={17} /><Text style={[styles.subjectText, selected && styles.subjectTextSelected]} numberOfLines={1}>{plan.studyTitle}</Text></View>
-      <Text style={[styles.subjectContent, selected && styles.subjectTextSelected]} numberOfLines={1}>{disabled ? '완료됨 · ' : ''}{plan.planContent}</Text>
+      <Text style={[styles.subjectContent, selected && styles.subjectTextSelected]} numberOfLines={1}>{completed ? '완료됨 · ' : ''}{plan.planContent}</Text>
     </Pressable>
   );
 }

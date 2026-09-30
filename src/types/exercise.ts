@@ -22,3 +22,8 @@ export interface ExerciseResponse extends ExerciseRequest {
   calories: number | null;
   createdAt: string;
 }
+
+export interface WeeklyWeightStatResponse {
+  date: string;
+  dailyTotalWeight: number;
+}

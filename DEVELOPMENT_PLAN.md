@@ -642,6 +642,14 @@ Refresh Token 쿠키가 `Secure=true`이므로 HTTP 로컬 환경에서는 재�
 - 다음 작업:
 ```
 
+### 2026-09-30 — 앱 아이콘·공부진도 가독성·월간 달력·다크모드
+
+- 완료: 제공된 SVG로 앱 아이콘/Android adaptive/monochrome 아이콘 생성, 공부 내용 항목별 구분선·쪽수·복습 표시, 월간 달력·날짜별 일정·오늘 이동·날짜 선택 등록, 기기 설정/라이트/다크 선택 및 SecureStore 저장
+- 변경 파일: `app.json`, 앱 화면과 공통 컴포넌트, `src/constants/theme.ts`, `src/stores/themeStore.ts`, `src/utils/calendar.ts`, `src/utils/planContent.ts`, 아이콘 자산, expo-system-ui 의존성
+- 검증 방법과 결과: TypeScript 검사·Android Expo export·git diff 검사 통과, 윤년/월별 날짜/요일 정렬/자정 현지 날짜 및 공부 항목 파싱 검사 통과, 테마 저장·복원·저장 실패·기기 설정/수동 모드 검사 통과
+- 실기기 및 UI 검증: 연결된 Android 기기와 브라우저가 없어 실기기 설치·수동 화면 확인은 미완료
+- APK 빌드: EAS `3568716e-238f-4d6c-a373-2d5dbddf225d` (preview, 실제 API, 데모 모드 비활성) — 완료, `builds/LearnTime-calendar-darkmode-20260930.apk` 다운로드 및 전체 ZIP CRC 검사 통과 (102,972,793 bytes)
+
 ### 2026-09-02 — 운동 기록·타이머 과목 선택·일정 관리 추가
 
 - 완료: 운동 부위/시간/중량/메모 기록 및 최근 목록, 타이머 화면 내 과목 선택, 월별 일정 조회/등록/삭제, 전 기능 데모 데이터

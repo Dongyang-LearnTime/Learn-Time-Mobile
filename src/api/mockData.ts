@@ -5,9 +5,12 @@ import type { UserSummaryResponse } from '../types/user';
 
 export const mockUserSummary: UserSummaryResponse = {
   point: 1_280,
-  tierName: 'Gold',
+  tierName: '자동차',
   nextMinPoint: 2_000,
-  badges: [],
+  badges: [
+    { badgeType: 'FIRST_STEP', displayName: '첫걸음', description: '첫 공부 계획 완료', acquiredAt: new Date().toISOString() },
+    { badgeType: 'EARLY_BIRD', displayName: '얼리버드', description: '아침 공부 완료', acquiredAt: new Date().toISOString() },
+  ],
 };
 
 export const mockTodayPlans: TodayStudyPlanResponse[] = [

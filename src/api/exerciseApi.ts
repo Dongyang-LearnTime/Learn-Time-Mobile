@@ -1,7 +1,21 @@
 import { apiClient } from './client';
 import { config } from '../constants/config';
-import type { ExerciseRequest, ExerciseResponse, WeightRequest, WeightResponse } from '../types/exercise';
+import type { ExerciseRequest, ExerciseResponse, WeeklyWeightStatResponse, WeightRequest, WeightResponse } from '../types/exercise';
 import { addMockExercise, addMockWeight, getMockExercises, getMockWeights, mockDelay } from './mockData';
+
+function dateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function fillRecentWeek(items: WeeklyWeightStatResponse[]): WeeklyWeightStatResponse[] {
+  const values = new Map(items.map((item) => [item.date, item.dailyTotalWeight]));
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    const key = dateKey(date);
+    return { date: key, dailyTotalWeight: values.get(key) ?? 0 };
+  });
+}
 
 export async function saveExercise(request: ExerciseRequest): Promise<ExerciseResponse> {
   if (!request || !Array.isArray(request.bodyParts) || request.bodyParts.length === 0 || request.bodyParts.length > 7
@@ -20,6 +34,16 @@ export async function getExercises(): Promise<ExerciseResponse[]> {
   if (config.demoMode) { await mockDelay(); return getMockExercises(); }
   const { data } = await apiClient.get<ExerciseResponse[]>('/api/exercise');
   return data;
+}
+
+export async function getWeeklyWeightStats(): Promise<WeeklyWeightStatResponse[]> {
+  if (config.demoMode) {
+    await mockDelay();
+    const dates = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - (6 - index)); return dateKey(date); });
+    return dates.map((date, index) => ({ date, dailyTotalWeight: [0, 120, 80, 0, 160, 200, 90][index] ?? 0 }));
+  }
+  const { data } = await apiClient.get<WeeklyWeightStatResponse[]>('/api/exercise/recent-week');
+  return fillRecentWeek(data);
 }
 
 export async function saveWeight(request: WeightRequest): Promise<WeightResponse> {

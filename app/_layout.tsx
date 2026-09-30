@@ -1,24 +1,33 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Appearance, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { colors } from '../src/constants/theme';
+import { useTheme, type ThemeColors } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
 import { useTimerStore } from '../src/stores/timerStore';
+import { useThemeStore } from '../src/stores/themeStore';
 
 export default function RootLayout() {
+  const { colors, isDark, mode } = useTheme();
+  const styles = createStyles(colors);
   const router = useRouter();
   const segments = useSegments();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isHydrating = useAuthStore((state) => state.isHydrating);
   const hydrateAuth = useAuthStore((state) => state.hydrate);
   const hydrateTimer = useTimerStore((state) => state.hydrate);
+  const hydrateTheme = useThemeStore((state) => state.hydrate);
+  const themeHydrating = useThemeStore((state) => state.isHydrating);
 
   useEffect(() => {
-    void Promise.all([hydrateAuth(), hydrateTimer()]);
-  }, [hydrateAuth, hydrateTimer]);
+    void Promise.all([hydrateAuth(), hydrateTimer(), hydrateTheme()]);
+  }, [hydrateAuth, hydrateTimer, hydrateTheme]);
+
+  useEffect(() => {
+    Appearance.setColorScheme(mode === 'system' ? 'unspecified' : mode);
+  }, [mode]);
 
   useEffect(() => {
     if (isHydrating) return;
@@ -29,7 +38,7 @@ export default function RootLayout() {
     if (isAuthenticated && isLoginRoute) router.replace('/');
   }, [isAuthenticated, isHydrating, router, segments]);
 
-  if (isHydrating) {
+  if (isHydrating || themeHydrating) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -39,8 +48,8 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
       </Stack>
@@ -48,6 +57,6 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
 });

@@ -7,7 +7,6 @@ import { MAX_FOCUS_SECONDS } from '../utils/formatTime';
 const TIMER_KEY = 'learntime.timer';
 
 interface PersistedTimer {
-  isPersonal: boolean;
   studyDailyPlanId: number | null;
   studyTitle: string | null;
   planContent: string | null;
@@ -21,7 +20,6 @@ interface TimerState extends PersistedTimer {
   isHydrated: boolean;
   hydrate: () => Promise<void>;
   selectPlan: (plan: TodayStudyPlanResponse) => Promise<void>;
-  selectPersonal: () => Promise<void>;
   start: () => Promise<void>;
   pause: () => Promise<number>;
   reset: () => Promise<void>;
@@ -29,7 +27,6 @@ interface TimerState extends PersistedTimer {
 }
 
 const initialTimer: PersistedTimer = {
-  isPersonal: false,
   studyDailyPlanId: null,
   studyTitle: null,
   planContent: null,
@@ -44,8 +41,8 @@ async function persist(state: PersistedTimer): Promise<void> {
 }
 
 function snapshot(state: TimerState): PersistedTimer {
-  const { isPersonal, studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds } = state;
-  return { isPersonal, studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds };
+  const { studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds } = state;
+  return { studyDailyPlanId, studyTitle, planContent, progressStatus, isRunning, startedAt, accumulatedSeconds };
 }
 
 function elapsed(state: PersistedTimer): number {
@@ -72,8 +69,7 @@ function parsePersistedTimer(raw: string): PersistedTimer | null {
       && value.accumulatedSeconds <= MAX_FOCUS_SECONDS;
 
     if (
-      typeof value.isPersonal !== 'boolean'
-      || typeof value.isRunning !== 'boolean'
+      typeof value.isRunning !== 'boolean'
       || !hasValidPlanId
       || !hasValidStartedAt
       || !hasValidSeconds
@@ -82,7 +78,7 @@ function parsePersistedTimer(raw: string): PersistedTimer | null {
       || !isNullableString(value.progressStatus)
     ) return null;
 
-    if (!value.isPersonal && value.studyDailyPlanId === null) return null;
+    if (value.studyDailyPlanId === null) return null;
     if (value.isRunning !== (value.startedAt !== null)) return null;
     return value as PersistedTimer;
   } catch {
@@ -124,19 +120,8 @@ export const useTimerStore = create<TimerState>((set, get) => ({
     await persist(next);
   },
 
-  selectPersonal: async () => {
-    const next: PersistedTimer = {
-      ...initialTimer,
-      isPersonal: true,
-      studyTitle: '자유 공부',
-      planContent: '스터디 그룹이나 과목 없이 집중 시간을 기록합니다.',
-    };
-    set(next);
-    await persist(next);
-  },
-
   start: async () => {
-    if (get().isRunning || (!get().isPersonal && get().studyDailyPlanId === null)) return;
+    if (get().isRunning || get().studyDailyPlanId === null) return;
     const next = { ...snapshot(get()), isRunning: true, startedAt: Date.now() };
     set(next);
     await persist(next);
@@ -155,7 +140,6 @@ export const useTimerStore = create<TimerState>((set, get) => ({
     const current = get();
     const next: PersistedTimer = {
       ...initialTimer,
-      isPersonal: current.isPersonal,
       studyDailyPlanId: current.studyDailyPlanId,
       studyTitle: current.studyTitle,
       planContent: current.planContent,
